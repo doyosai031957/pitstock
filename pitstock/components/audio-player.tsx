@@ -8,20 +8,24 @@ import {
   PauseIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  BookOpenIcon,
 } from "lucide-react";
 
 export function AudioPlayer({
   audioBase64,
   script,
+  glossary,
 }: {
   audioBase64: string;
   script: string;
+  glossary: { term: string; definition: string }[];
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showScript, setShowScript] = useState(false);
+  const [showGlossary, setShowGlossary] = useState(false);
 
   const audioSrc = `data:audio/wav;base64,${audioBase64}`;
 
@@ -122,6 +126,33 @@ export function AudioPlayer({
         <div className="mt-3 rounded-lg bg-foreground/5 p-4 text-sm text-foreground/70 leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
           {script}
         </div>
+      )}
+
+      {/* Glossary Toggle */}
+      {glossary.length > 0 && (
+        <>
+          <button
+            onClick={() => setShowGlossary(!showGlossary)}
+            className="mt-3 flex items-center gap-1.5 text-sm text-foreground/50 hover:text-foreground/70 transition-colors"
+          >
+            <BookOpenIcon className="size-3.5" />
+            용어 사전 {showGlossary ? "접기" : "보기"}
+          </button>
+
+          {showGlossary && (
+            <div className="mt-3 rounded-lg bg-foreground/5 p-4 text-sm leading-relaxed max-h-60 overflow-y-auto">
+              <ul className="space-y-2">
+                {glossary.map((item) => (
+                  <li key={item.term}>
+                    <span className="font-semibold text-foreground/80">{item.term}</span>
+                    <span className="text-foreground/40 mx-1.5">:</span>
+                    <span className="text-foreground/60">{item.definition}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

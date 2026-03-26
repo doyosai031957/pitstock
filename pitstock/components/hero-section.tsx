@@ -33,6 +33,7 @@ export function HeroSection() {
   const [briefingData, setBriefingData] = useState<{
     script: string;
     audioBase64: string;
+    glossary: { term: string; definition: string }[];
   } | null>(null);
   const [briefingError, setBriefingError] = useState("");
 
@@ -175,6 +176,7 @@ export function HeroSection() {
                 <AudioPlayer
                   audioBase64={briefingData.audioBase64}
                   script={briefingData.script}
+                  glossary={briefingData.glossary}
                 />
               ) : (
                 <Button
