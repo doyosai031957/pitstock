@@ -39,27 +39,12 @@ function stripSpecialCharacters(text: string): string {
     .trim();
 }
 
-function textToSsml(text: string): string {
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  const withBreaks = escaped
-    .replace(/,\s*/g, '<break time="30ms"/>')
-    .replace(/\.(?=\s)/g, '.<break time="150ms"/>')
-    .replace(/\?\s*/g, '?<break time="150ms"/>')
-    .replace(/!\s*/g, '!<break time="150ms"/>');
-
-  return `<speak>${withBreaks}</speak>`;
-}
-
-function ssmlByteLength(text: string): number {
-  return encoder.encode(textToSsml(text)).length;
+function textByteLength(text: string): number {
+  return encoder.encode(text).length;
 }
 
 function splitTextIntoChunks(text: string): string[] {
-  if (ssmlByteLength(text) <= MAX_BYTES) {
+  if (textByteLength(text) <= MAX_BYTES) {
     return [text];
   }
 
@@ -69,7 +54,7 @@ function splitTextIntoChunks(text: string): string[] {
 
   for (const sentence of sentences) {
     const candidate = current ? `${current} ${sentence}` : sentence;
-    if (ssmlByteLength(candidate) > MAX_BYTES && current) {
+    if (textByteLength(candidate) > MAX_BYTES && current) {
       chunks.push(current);
       current = sentence;
     } else {
@@ -84,13 +69,11 @@ function splitTextIntoChunks(text: string): string[] {
 }
 
 async function synthesizeChunk(text: string, apiKey: string): Promise<string> {
-  const ssml = textToSsml(text);
-
   const res = await fetch(`${TTS_URL}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      input: { ssml },
+      input: { text },
       voice: {
         languageCode: "ko-KR",
         name: "ko-KR-Chirp3-HD-Leda",
