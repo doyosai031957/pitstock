@@ -4,7 +4,7 @@ const MAX_BYTES = 4900; // TTS limit is 5000 bytes
 
 const encoder = new TextEncoder();
 
-const SAMPLE_RATE = 24000;
+export const SAMPLE_RATE = 24000;
 const NUM_CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
 
@@ -95,7 +95,8 @@ async function synthesizeChunk(text: string, apiKey: string): Promise<string> {
   return data.audioContent; // base64-encoded raw PCM (LINEAR16)
 }
 
-export async function synthesizeSpeech(text: string): Promise<string> {
+// 텍스트 → raw PCM Buffer (WAV 헤더 없음)
+export async function synthesizeSegmentToPCM(text: string): Promise<Buffer> {
   const apiKey = process.env.GOOGLE_TTS_API_KEY;
   if (!apiKey) {
     throw new Error("GOOGLE_TTS_API_KEY is required");
@@ -104,20 +105,34 @@ export async function synthesizeSpeech(text: string): Promise<string> {
   const cleanText = stripSpecialCharacters(text);
   const chunks = splitTextIntoChunks(cleanText);
 
-  if (chunks.length === 1) {
-    const b64 = await synthesizeChunk(chunks[0], apiKey);
-    return addWavHeader(Buffer.from(b64, "base64")).toString("base64");
-  }
-
-  // Synthesize all chunks in parallel
   const audioChunks = await Promise.all(
     chunks.map((chunk) => synthesizeChunk(chunk, apiKey)),
   );
 
-  // Concatenate raw PCM and wrap in WAV
   const buffers = audioChunks.map((b64) => Buffer.from(b64, "base64"));
-  const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
-  const pcm = Buffer.concat(buffers, totalLength);
+  return Buffer.concat(buffers);
+}
 
+// PCM Buffer 배열 → WAV base64 (세그먼트 사이 0.3초 무음 삽입)
+export function combinePCMToWav(pcmBuffers: Buffer[]): string {
+  const silenceDuration = 0.3; // seconds
+  const silenceBytes = Math.floor(SAMPLE_RATE * NUM_CHANNELS * (BITS_PER_SAMPLE / 8) * silenceDuration);
+  const silence = Buffer.alloc(silenceBytes);
+
+  const parts: Buffer[] = [];
+  for (let i = 0; i < pcmBuffers.length; i++) {
+    parts.push(pcmBuffers[i]);
+    if (i < pcmBuffers.length - 1) {
+      parts.push(silence);
+    }
+  }
+
+  const pcm = Buffer.concat(parts);
   return addWavHeader(pcm).toString("base64");
+}
+
+// 기존 호환: 텍스트 → WAV base64
+export async function synthesizeSpeech(text: string): Promise<string> {
+  const pcm = await synthesizeSegmentToPCM(text);
+  return combinePCMToWav([pcm]);
 }

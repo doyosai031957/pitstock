@@ -15,44 +15,25 @@ function stripHtml(text: string): string {
 }
 
 const NON_FINANCIAL_KEYWORDS = [
-  "출시", "론칭", "신제품", "세탁기", "건조기", "냉장고", "에어컨", "TV",
+  "신제품", "세탁기", "건조기", "냉장고", "에어컨", "TV",
   "갤럭시", "아이폰", "스마트폰", "태블릿", "노트북",
   "채용", "인턴", "사회공헌", "기부", "봉사", "후원",
   "마케팅", "캠페인", "프로모션", "할인", "이벤트",
   "브라우저", "앱 출시", "업데이트 출시", "세탁건조기",
+  "나무심기", "나무 심기", "식수 행사", "탄소중립 숲",
+  "전시회", "박람회", "공모전", "체험행사", "페스티벌",
 ];
 
-function isNonFinancialArticle(title: string): boolean {
-  const lower = title.toLowerCase();
-  return NON_FINANCIAL_KEYWORDS.some((keyword) => lower.includes(keyword.toLowerCase()));
+function isNonFinancialArticle(title: string, description: string): boolean {
+  const text = (title + " " + description).toLowerCase();
+  return NON_FINANCIAL_KEYWORDS.some((keyword) => text.includes(keyword.toLowerCase()));
 }
 
-function getKSTDate(): Date {
+function getBriefingTimeRange(): { start: Date; end: Date } {
+  // 현재 시각 기준 지난 24시간
   const now = new Date();
-  const kstOffset = 9 * 60 * 60 * 1000;
-  return new Date(now.getTime() + kstOffset + now.getTimezoneOffset() * 60 * 1000);
-}
-
-function getBriefingTimeRange(): { start: Date; end: Date; type: string } {
-  const kst = getKSTDate();
-  const hour = kst.getHours();
-
-  if (hour < 17) {
-    // 아침 브리핑: 전날 18시 ~ 당일 07시
-    const start = new Date(kst);
-    start.setDate(start.getDate() - 1);
-    start.setHours(18, 0, 0, 0);
-    const end = new Date(kst);
-    end.setHours(7, 0, 0, 0);
-    return { start, end, type: "아침" };
-  } else {
-    // 저녁 브리핑: 당일 08시 ~ 18시
-    const start = new Date(kst);
-    start.setHours(8, 0, 0, 0);
-    const end = new Date(kst);
-    end.setHours(18, 0, 0, 0);
-    return { start, end, type: "저녁" };
-  }
+  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return { start, end: now };
 }
 
 function isInBriefingRange(dateStr: string): boolean {
@@ -94,7 +75,7 @@ export async function fetchNewsForStock(stock: string): Promise<StockNews> {
       link: item.link,
       pubDate: item.pubDate,
     }))
-    .filter((item: NewsItem) => !isNonFinancialArticle(item.title));
+    .filter((item: NewsItem) => !isNonFinancialArticle(item.title, item.description));
 
   return { stock, articles: items };
 }
@@ -158,7 +139,7 @@ export async function fetchEconomicNews(): Promise<NewsItem[]> {
         link: item.link,
         pubDate: item.pubDate,
       }))
-      .filter((item: NewsItem) => !isNonFinancialArticle(item.title))
+      .filter((item: NewsItem) => !isNonFinancialArticle(item.title, item.description))
       .filter((item: NewsItem) => {
         if (seenTitles.has(item.title)) return false;
         seenTitles.add(item.title);

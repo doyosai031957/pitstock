@@ -140,7 +140,7 @@ export function HeroSection() {
           )}
         >
           <Volume2Icon className="size-3 text-foreground/50" />
-          <span className="text-xs text-foreground/70">매일 아침 8시, 음성 브리핑</span>
+          <span className="text-xs text-foreground/70">매일 아침, 음성 브리핑</span>
         </div>
 
         {/* Heading */}
@@ -271,8 +271,8 @@ export function FeaturesSection() {
           />
           <FeatureCard
             icon={<ClockIcon className="size-5" />}
-            title="매일 아침 8시"
-            description="출근 전 5분, 어제의 주요 뉴스를 빠르게 확인하세요"
+            title="하루 한 번 브리핑"
+            description="지난 24시간의 주요 뉴스를 5분 만에 확인하세요"
           />
           <FeatureCard
             icon={<Volume2Icon className="size-5" />}
