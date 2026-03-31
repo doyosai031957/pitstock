@@ -1,3 +1,22 @@
+/**
+ * 브리핑 사전 생성 모듈
+ *
+ * 전체 흐름:
+ * 1. 모든 유저의 관심종목 수집 (중복 제거)
+ * 2. 네이버 뉴스 + 경제 뉴스 일괄 수집
+ * 3. 한국투자증권 API로 종목별 시세/수급 데이터 수집
+ * 4. 공통 스크립트 (경제 브리핑) 생성 → TTS → PCM 저장
+ * 5. 종목별 스크립트 생성 → TTS → PCM 저장 (동시 3개씩)
+ * 6. 클로징 스크립트 생성 → TTS → PCM 저장
+ *
+ * 저장 구조: data/briefing/{YYYY-MM-DD}/
+ *   ├── manifest.json (상태, 생성 시각, 종목 목록)
+ *   ├── common.pcm + .json
+ *   ├── closing.pcm + .json
+ *   └── stocks/{종목명}.pcm + .json
+ *
+ * 유저 요청 시 POST /api/briefing에서 해당 유저의 종목 PCM만 조립하여 WAV 반환
+ */
 import { fetchNewsForStocks, fetchEconomicNews } from "./naver-news";
 import type { StockNews, NewsItem } from "./naver-news";
 import { generateCommonScript, generateStockScript, generateClosingScript } from "./generate-script";

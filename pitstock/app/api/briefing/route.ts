@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/session";
 import { fetchNewsForStocks, fetchEconomicNews } from "@/lib/naver-news";
-import { generateScript, generateStockScript, generateCommonScript, generateClosingScript } from "@/lib/generate-script";
-import { synthesizeSpeech, synthesizeSegmentToPCM, combinePCMToWav } from "@/lib/tts";
+import { generateStockScript, generateCommonScript, generateClosingScript } from "@/lib/generate-script";
+import { synthesizeSegmentToPCM, synthesizeSegmentToPCMClova, combinePCMToWav } from "@/lib/tts";
 import {
   readManifest,
   readSegmentPCM,
@@ -11,8 +11,8 @@ import {
   getClosingPath,
   getStockPath,
   stockSegmentExists,
-  writeSegment,
   findLatestBriefingDate,
+  writeSegment,
 } from "@/lib/briefing-store";
 import type { GlossaryItem } from "@/lib/generate-script";
 import type { SegmentMeta } from "@/lib/briefing-store";
@@ -122,12 +122,24 @@ async function assembleFromCache(date: string, userStocks: string[], cachedStock
   scripts.push(closingMeta.script);
   addGlossary(closingMeta.glossary);
 
-  // 조립
+  // 조립: 구글 TTS (캐시된 PCM 사용)
   const audioBase64 = combinePCMToWav(pcmBuffers);
   const script = scripts.join("\n\n");
   const glossary = Array.from(glossaryMap.values());
 
-  return Response.json({ script, audioBase64, glossary });
+  // 클로바 TTS: 스크립트 기반으로 병렬 생성
+  let clovaAudioBase64: string | null = null;
+  try {
+    const clovaPCMs: Buffer[] = [];
+    for (const s of scripts) {
+      clovaPCMs.push(await synthesizeSegmentToPCMClova(s));
+    }
+    clovaAudioBase64 = combinePCMToWav(clovaPCMs);
+  } catch (err) {
+    console.error("[briefing] Clova TTS failed in cache assembly:", err);
+  }
+
+  return Response.json({ script, audioBase64, clovaAudioBase64, glossary });
 }
 
 // 캐시 미스 종목의 온디맨드 생성
@@ -178,15 +190,112 @@ async function generateStockOnDemand(
   return { pcm, meta: result };
 }
 
-// 기존 온디맨드 방식 (폴백)
+// 캐시 없을 때 분할 방식으로 온디맨드 생성
 async function generateOnTheFly(stocks: string[]) {
+  const date = getKSTDateString();
+  const { initBriefingDir, writeManifest, writeSegment: writeSegmentStore } = await import("@/lib/briefing-store");
+
+  // 폴더 생성
+  await initBriefingDir(date);
+
   const [newsData, economicNews] = await Promise.all([
     fetchNewsForStocks(stocks),
     fetchEconomicNews(),
   ]);
 
-  const { script, glossary } = await generateScript(newsData, economicNews);
-  const audioBase64 = await synthesizeSpeech(script);
+  const pcmBuffers: Buffer[] = [];
+  const scripts: string[] = [];
+  const glossaryMap = new Map<string, GlossaryItem>();
+  const addGlossary = (items: GlossaryItem[]) => {
+    for (const item of items) {
+      if (!glossaryMap.has(item.term)) glossaryMap.set(item.term, item);
+    }
+  };
 
-  return Response.json({ script, audioBase64, glossary });
+  // === 1단계: 스크립트 생성 (TTS 전에 모두 생성) ===
+  type ScriptSegment = { key: string; script: string; glossary: { term: string; definition: string }[] };
+  const segments: ScriptSegment[] = [];
+
+  // 공통 스크립트
+  const commonResult = await generateCommonScript(economicNews);
+  segments.push({ key: "common", script: commonResult.script, glossary: commonResult.glossary });
+
+  // 종목별 스크립트
+  const generatedStocks: string[] = [];
+  for (const stock of stocks) {
+    const stockNews = newsData.find((n) => n.stock === stock) || { stock, articles: [] };
+
+    let marketDataText: string | undefined;
+    try {
+      const { getStockCode } = await import("@/lib/stocks");
+      const { fetchStockMarketData, formatMarketDataForPrompt } = await import("@/lib/kis-api");
+      const code = getStockCode(stock);
+      if (code) {
+        const marketData = await fetchStockMarketData(code);
+        marketDataText = formatMarketDataForPrompt(marketData);
+      }
+    } catch {}
+
+    const result = await generateStockScript(stock, stockNews, newsData, economicNews, marketDataText);
+    segments.push({ key: stock, script: result.script, glossary: result.glossary });
+    generatedStocks.push(stock);
+  }
+
+  // 클로징 스크립트
+  const closingResult = await generateClosingScript();
+  segments.push({ key: "closing", script: closingResult.script, glossary: closingResult.glossary });
+
+  // 스크립트/용어 취합
+  for (const seg of segments) {
+    scripts.push(seg.script);
+    addGlossary(seg.glossary);
+  }
+
+  // === 2단계: 구글 TTS + 클로바 TTS 병렬 실행 ===
+  const googleTTSTask = async () => {
+    const buffers: Buffer[] = [];
+    for (const seg of segments) {
+      buffers.push(await synthesizeSegmentToPCM(seg.script));
+    }
+    return combinePCMToWav(buffers);
+  };
+
+  const clovaTTSTask = async () => {
+    try {
+      const buffers: Buffer[] = [];
+      for (const seg of segments) {
+        buffers.push(await synthesizeSegmentToPCMClova(seg.script));
+      }
+      return combinePCMToWav(buffers);
+    } catch (err) {
+      console.error("[briefing] Clova TTS failed:", err);
+      return null; // 클로바 실패해도 구글은 반환
+    }
+  };
+
+  const [audioBase64, clovaAudioBase64] = await Promise.all([googleTTSTask(), clovaTTSTask()]);
+
+  // 캐시 저장 (구글 TTS 기준)
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const pcm = await synthesizeSegmentToPCM(seg.script);
+    const meta = { script: seg.script, glossary: seg.glossary };
+    const path = seg.key === "common" ? getCommonPath(date)
+      : seg.key === "closing" ? getClosingPath(date)
+      : getStockPath(date, seg.key);
+    try { await writeSegmentStore(path, pcm, meta); } catch {}
+  }
+
+  try {
+    await writeManifest(date, {
+      status: "complete",
+      generatedAt: new Date().toISOString(),
+      stocks: generatedStocks,
+    });
+  } catch {}
+
+  const script = scripts.join("\n\n");
+  const glossary = Array.from(glossaryMap.values());
+
+  return Response.json({ script, audioBase64, clovaAudioBase64, glossary });
 }

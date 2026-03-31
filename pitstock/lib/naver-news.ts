@@ -14,14 +14,22 @@ function stripHtml(text: string): string {
   return text.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/g, " ").trim();
 }
 
+// 종목별 금융 맥락 검색 쿼리 (종목명과 조합하여 사용)
+const STOCK_QUERY_SUFFIXES = [
+  "주가",
+  "실적 매출",
+  "투자 수주 계약",
+  "목표주가 리포트",
+  "외국인 기관 매매",
+];
+
+// 블랙리스트: 이 키워드가 포함된 기사는 제외
 const NON_FINANCIAL_KEYWORDS = [
-  "신제품", "세탁기", "건조기", "냉장고", "에어컨", "TV",
-  "갤럭시", "아이폰", "스마트폰", "태블릿", "노트북",
-  "채용", "인턴", "사회공헌", "기부", "봉사", "후원",
-  "마케팅", "캠페인", "프로모션", "할인", "이벤트",
-  "브라우저", "앱 출시", "업데이트 출시", "세탁건조기",
-  "나무심기", "나무 심기", "식수 행사", "탄소중립 숲",
+  "채용", "인턴", "사회공헌", "기부", "봉사", "후원", "장학",
+  "나무심기", "나무 심기", "조림", "탄소중립 숲", "친환경 캠페인",
   "전시회", "박람회", "공모전", "체험행사", "페스티벌",
+  "신제품 출시", "앱 출시", "업데이트 출시",
+  "영업이사", "판매왕", "판매 기록", "누적 판매",
 ];
 
 function isNonFinancialArticle(title: string, description: string): boolean {
@@ -30,10 +38,32 @@ function isNonFinancialArticle(title: string, description: string): boolean {
 }
 
 function getBriefingTimeRange(): { start: Date; end: Date } {
-  // 현재 시각 기준 지난 24시간
+  // 전날 00:00:00 KST ~ 전날 23:59:59 KST
   const now = new Date();
-  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  return { start, end: now };
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(now.getTime() + kstOffset);
+
+  // KST 기준 전날
+  const yesterday = new Date(kstNow);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+  // 전날 00:00:00 KST = 전날 00:00 - 9시간 = UTC
+  const start = new Date(Date.UTC(
+    yesterday.getUTCFullYear(),
+    yesterday.getUTCMonth(),
+    yesterday.getUTCDate(),
+    0, 0, 0,
+  ) - kstOffset);
+
+  // 전날 23:59:59 KST
+  const end = new Date(Date.UTC(
+    yesterday.getUTCFullYear(),
+    yesterday.getUTCMonth(),
+    yesterday.getUTCDate(),
+    23, 59, 59,
+  ) - kstOffset);
+
+  return { start, end };
 }
 
 function isInBriefingRange(dateStr: string): boolean {
@@ -50,34 +80,49 @@ export async function fetchNewsForStock(stock: string): Promise<StockNews> {
     throw new Error("NAVER_CLIENT_ID and NAVER_CLIENT_SECRET are required");
   }
 
-  const url = new URL("https://openapi.naver.com/v1/search/news.json");
-  url.searchParams.set("query", stock);
-  url.searchParams.set("display", "30");
-  url.searchParams.set("sort", "sim");
+  // 금융 맥락 쿼리 여러 개로 검색하여 양질의 기사 수집
+  const queries = STOCK_QUERY_SUFFIXES.map((suffix) => `${stock} ${suffix}`);
+  const seenTitles = new Set<string>();
+  const allItems: NewsItem[] = [];
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "X-Naver-Client-Id": clientId,
-      "X-Naver-Client-Secret": clientSecret,
-    },
-  });
+  for (const query of queries) {
+    const url = new URL("https://openapi.naver.com/v1/search/news.json");
+    url.searchParams.set("query", query);
+    url.searchParams.set("display", "100");
+    url.searchParams.set("sort", "date");
 
-  if (!res.ok) {
-    throw new Error(`Naver API error: ${res.status} ${res.statusText}`);
+    const res = await fetch(url.toString(), {
+      headers: {
+        "X-Naver-Client-Id": clientId,
+        "X-Naver-Client-Secret": clientSecret,
+      },
+    });
+
+    if (!res.ok) continue;
+
+    const data = await res.json();
+    const items: NewsItem[] = (data.items || [])
+      .filter((item: { pubDate: string }) => isInBriefingRange(item.pubDate))
+      .map((item: { title: string; description: string; link: string; pubDate: string }) => ({
+        title: stripHtml(item.title),
+        description: stripHtml(item.description),
+        link: item.link,
+        pubDate: item.pubDate,
+      }))
+      .filter((item: NewsItem) => !isNonFinancialArticle(item.title, item.description))
+      .filter((item: NewsItem) => {
+        if (seenTitles.has(item.title)) return false;
+        seenTitles.add(item.title);
+        return true;
+      });
+
+    allItems.push(...items);
   }
 
-  const data = await res.json();
-  const items: NewsItem[] = (data.items || [])
-    .filter((item: { pubDate: string }) => isInBriefingRange(item.pubDate))
-    .map((item: { title: string; description: string; link: string; pubDate: string }) => ({
-      title: stripHtml(item.title),
-      description: stripHtml(item.description),
-      link: item.link,
-      pubDate: item.pubDate,
-    }))
-    .filter((item: NewsItem) => !isNonFinancialArticle(item.title, item.description));
+  // 최신순 정렬 후 상위 15개
+  allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 
-  return { stock, articles: items };
+  return { stock, articles: allItems.slice(0, 15) };
 }
 
 export async function fetchNewsForStocks(stocks: string[]): Promise<StockNews[]> {
@@ -109,13 +154,16 @@ export async function fetchEconomicNews(): Promise<NewsItem[]> {
     throw new Error("NAVER_CLIENT_ID and NAVER_CLIENT_SECRET are required");
   }
 
+  const { start, end } = getBriefingTimeRange();
+  console.log(`[news] 경제 뉴스 수집 범위: ${start.toISOString()} ~ ${end.toISOString()}`);
+
   const groupArticles: NewsItem[][] = [];
   const seenTitles = new Set<string>();
 
   for (const query of ECONOMIC_KEYWORDS) {
     const url = new URL("https://openapi.naver.com/v1/search/news.json");
     url.searchParams.set("query", query);
-    url.searchParams.set("display", "3");
+    url.searchParams.set("display", "100");
     url.searchParams.set("sort", "date");
 
     const res = await fetch(url.toString(), {
@@ -131,8 +179,15 @@ export async function fetchEconomicNews(): Promise<NewsItem[]> {
     }
 
     const data = await res.json();
-    const items: NewsItem[] = (data.items || [])
-      .filter((item: { pubDate: string }) => isInBriefingRange(item.pubDate))
+    const rawItems = data.items || [];
+    const afterDateFilter = rawItems.filter((item: { pubDate: string }) => isInBriefingRange(item.pubDate));
+
+    if (rawItems.length > 0 && afterDateFilter.length === 0) {
+      const dates = rawItems.slice(0, 3).map((item: { pubDate: string }) => item.pubDate);
+      console.log(`[news] "${query}" → ${rawItems.length}건 중 날짜 필터 통과 0건. 최신 기사 날짜: ${dates.join(", ")}`);
+    }
+
+    const items: NewsItem[] = afterDateFilter
       .map((item: { title: string; description: string; link: string; pubDate: string }) => ({
         title: stripHtml(item.title),
         description: stripHtml(item.description),
@@ -165,5 +220,6 @@ export async function fetchEconomicNews(): Promise<NewsItem[]> {
     round++;
   }
 
+  console.log(`[news] 경제 뉴스 수집 완료: ${result.length}건 (키워드 ${ECONOMIC_KEYWORDS.length}개 검색)`);
   return result;
 }

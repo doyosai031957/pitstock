@@ -1,10 +1,9 @@
-import { HeroSection, FeaturesSection } from "@/components/hero-section";
+import { HeroSection } from "@/components/hero-section";
 
 export default function Home() {
   return (
-    <main className="relative overflow-hidden">
+    <main>
       <HeroSection />
-      <FeaturesSection />
     </main>
   );
 }
