@@ -18,7 +18,10 @@ import {
   PlayIcon,
   LoaderIcon,
   FileTextIcon,
+  HistoryIcon,
 } from "lucide-react";
+import { HistoryPanel } from "@/components/history-panel";
+import { saveToHistory } from "@/lib/briefing-history";
 
 export function HeroSection() {
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
@@ -27,7 +30,6 @@ export function HeroSection() {
   const [briefingData, setBriefingData] = useState<{
     script: string;
     audioBase64: string;
-    clovaAudioBase64?: string | null;
     glossary: { term: string; definition: string }[];
   } | null>(null);
   const [briefingError, setBriefingError] = useState("");
@@ -37,6 +39,8 @@ export function HeroSection() {
     glossary: { term: string; definition: string }[];
   } | null>(null);
   const [economyError, setEconomyError] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     loadStocks().then(({ stocks }) => setSavedStocks(stocks));
@@ -63,6 +67,14 @@ export function HeroSection() {
         setBriefingError(data.error || "브리핑 생성에 실패했습니다.");
       } else {
         setBriefingData(data);
+        saveToHistory({
+          type: "briefing",
+          stocks: savedStocks,
+          script: data.script,
+          glossary: data.glossary,
+          validation: data.validation,
+        });
+        setHistoryKey((k) => k + 1);
       }
     } catch {
       setBriefingError("네트워크 오류가 발생했습니다.");
@@ -84,6 +96,14 @@ export function HeroSection() {
         setEconomyError(data.error || "스크립트 생성에 실패했습니다.");
       } else {
         setEconomyData(data);
+        saveToHistory({
+          type: "economy",
+          stocks: [],
+          script: data.script,
+          glossary: data.glossary,
+          validation: data.validation,
+        });
+        setHistoryKey((k) => k + 1);
       }
     } catch {
       setEconomyError("네트워크 오류가 발생했습니다.");
@@ -93,9 +113,21 @@ export function HeroSection() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-12">
-      <h1 className="text-xl font-bold tracking-tight mb-8">뉴스브리핑 테스트</h1>
+    <section className="mx-auto w-full max-w-7xl px-6 py-12">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-xl font-bold tracking-tight">뉴스브리핑 테스트</h1>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowHistory((v) => !v)}
+          className="text-foreground/50"
+        >
+          <HistoryIcon className="size-4 mr-1.5" />
+          히스토리
+        </Button>
+      </div>
 
+      <div className={`grid gap-8 ${showHistory ? "lg:grid-cols-[1fr_400px]" : ""}`}>
       <div className="flex flex-col gap-6">
         {savedStocks.length > 0 ? (
           <>
@@ -122,25 +154,12 @@ export function HeroSection() {
 
             {/* 브리핑 생성 */}
             {briefingData ? (
-              <div className="flex flex-col gap-4 max-w-md">
-                <div>
-                  <p className="text-xs text-foreground/40 mb-1.5">Google TTS</p>
-                  <AudioPlayer
-                    audioBase64={briefingData.audioBase64}
-                    script={briefingData.script}
-                    glossary={briefingData.glossary}
-                  />
-                </div>
-                {briefingData.clovaAudioBase64 && (
-                  <div>
-                    <p className="text-xs text-foreground/40 mb-1.5">Naver Clova TTS</p>
-                    <AudioPlayer
-                      audioBase64={briefingData.clovaAudioBase64}
-                      script={briefingData.script}
-                      glossary={briefingData.glossary}
-                    />
-                  </div>
-                )}
+              <div className="max-w-md">
+                <AudioPlayer
+                  audioBase64={briefingData.audioBase64}
+                  script={briefingData.script}
+                  glossary={briefingData.glossary}
+                />
               </div>
             ) : (
               <div>
@@ -211,6 +230,9 @@ export function HeroSection() {
             주식 설정하기
           </Button>
         )}
+      </div>
+
+      {showHistory && <HistoryPanel key={historyKey} />}
       </div>
 
       {/* Stock Picker Dialog */}

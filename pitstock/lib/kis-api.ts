@@ -334,8 +334,8 @@ export function formatMarketDataForPrompt(data: StockMarketData): string {
   const { price, investor } = data;
   const changeSign = price.changePrice >= 0 ? "+" : "";
 
-  let text = `[시장 데이터]\n`;
-  text += `전일 종가: ${price.currentPrice.toLocaleString()}원 (${changeSign}${price.changeRate}퍼센트)\n`;
+  let text = `[시장 데이터 — 오늘 기준 실시간 조회 (뉴스와 시점이 다름)]\n`;
+  text += `현재가: ${price.currentPrice.toLocaleString()}원 (전일 대비 ${changeSign}${price.changeRate}퍼센트)\n`;
   text += `거래량: ${(price.volume / 10000).toFixed(0)}만주\n`;
 
   if (investor.foreignNetBuy !== 0) {

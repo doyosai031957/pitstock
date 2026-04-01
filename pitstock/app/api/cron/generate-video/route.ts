@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { fetchEconomicNewsScheduled } from "@/lib/naver-news";
+import { fetchEconomicNews } from "@/lib/naver-news";
 import { generateEconomySummary } from "@/lib/generate-script";
 import { synthesizeSegmentToPCMClova } from "@/lib/tts";
 import { generateVideo } from "@/lib/video-gen";
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // 1. 경제 뉴스 + 시장 데이터 수집
     console.log("[cron-video] 1/4 경제 뉴스 + 시장 데이터 수집...");
     const [economicNews, marketOverview] = await Promise.all([
-      fetchEconomicNewsScheduled(),
+      fetchEconomicNews(),
       fetchMarketOverview().catch((err) => {
         console.warn("[cron-video] KIS API 시장 데이터 조회 실패:", err);
         return null;
