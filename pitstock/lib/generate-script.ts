@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { StockNews, NewsItem } from "./naver-news";
 
 export interface GlossaryItem {
@@ -307,10 +307,10 @@ const CLOSING_SYSTEM_PROMPT = `당신은 주식 초보자(주린이)들에게 �
 
 ${SHARED_RULES}`;
 
-function getAnthropicClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is required");
-  return new Anthropic({ apiKey });
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is required");
+  return new OpenAI({ apiKey });
 }
 
 function parseScriptResult(text: string): ScriptResult {
@@ -326,20 +326,22 @@ function parseScriptResult(text: string): ScriptResult {
   }
 }
 
-async function callClaude(systemPrompt: string, userMessage: string, maxTokens = 2048): Promise<ScriptResult> {
-  const client = getAnthropicClient();
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+async function callLLM(systemPrompt: string, userMessage: string, maxTokens = 2048): Promise<ScriptResult> {
+  const client = getOpenAIClient();
+  const response = await client.chat.completions.create({
+    model: "gpt-4o",
     max_tokens: maxTokens,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text response from Claude API");
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
+    throw new Error("No text response from OpenAI API");
   }
-  return parseScriptResult(textBlock.text);
+  return parseScriptResult(text);
 }
 
 // 공통 스크립트 생성 (오프닝 + 경제 요약)
@@ -356,7 +358,7 @@ export async function generateCommonScript(economicNews: NewsItem[]): Promise<Sc
     }
   }
 
-  return callClaude(COMMON_SYSTEM_PROMPT, message);
+  return callLLM(COMMON_SYSTEM_PROMPT, message);
 }
 
 // 종목별 스크립트 생성
@@ -399,14 +401,14 @@ export async function generateStockScript(
     }
   }
 
-  return callClaude(STOCK_SYSTEM_PROMPT, message);
+  return callLLM(STOCK_SYSTEM_PROMPT, message);
 }
 
 // 클로징 스크립트 생성
 export async function generateClosingScript(): Promise<ScriptResult> {
   const kst = getKSTDate();
   const dateStr = `${kst.getFullYear()}년 ${kst.getMonth() + 1}월 ${kst.getDate()}일`;
-  return callClaude(CLOSING_SYSTEM_PROMPT, `날짜: ${dateStr}\n마무리 멘트를 작성해주세요.`);
+  return callLLM(CLOSING_SYSTEM_PROMPT, `날짜: ${dateStr}\n마무리 멘트를 작성해주세요.`);
 }
 
 // === 경제 이슈 요약 전용 (1000~1300자) ===
@@ -513,43 +515,10 @@ export async function generateEconomySummary(economicNews: NewsItem[], marketDat
     }
   }
 
-  return callClaude(ECONOMY_SUMMARY_SYSTEM_PROMPT, message, 4096);
+  return callLLM(ECONOMY_SUMMARY_SYSTEM_PROMPT, message, 4096);
 }
 
 // 기존 호환: 전체 스크립트 한번에 생성 (폴백용)
 export async function generateScript(newsData: StockNews[], economicNews: NewsItem[] = []): Promise<ScriptResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is required");
-  }
-
-  const client = new Anthropic({ apiKey });
-
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: buildUserMessage(newsData, economicNews),
-      },
-    ],
-  });
-
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text response from Claude API");
-  }
-
-  try {
-    const raw = textBlock.text
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-      .trim();
-    const parsed = JSON.parse(raw);
-    return { script: parsed.script, glossary: parsed.glossary ?? [] };
-  } catch {
-    return { script: textBlock.text, glossary: [] };
-  }
+  return callLLM(SYSTEM_PROMPT, buildUserMessage(newsData, economicNews), 4096);
 }

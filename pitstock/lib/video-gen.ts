@@ -7,8 +7,7 @@ import { SAMPLE_RATE } from "./tts";
 
 const execFileAsync = promisify(execFile);
 
-const FFMPEG_PATH = process.env.FFMPEG_PATH
-  || "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1-full_build\\bin\\ffmpeg.exe";
+const FFMPEG_PATH = process.env.FFMPEG_PATH || "ffmpeg";
 
 const VIDEO_WIDTH = 1080;
 const VIDEO_HEIGHT = 1920;

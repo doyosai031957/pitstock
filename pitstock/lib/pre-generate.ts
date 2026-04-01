@@ -17,7 +17,7 @@
  *
  * 유저 요청 시 POST /api/briefing에서 해당 유저의 종목 PCM만 조립하여 WAV 반환
  */
-import { fetchNewsForStocks, fetchEconomicNews } from "./naver-news";
+import { fetchNewsForStocks, fetchEconomicNewsScheduled } from "./naver-news";
 import type { StockNews, NewsItem } from "./naver-news";
 import { generateCommonScript, generateStockScript, generateClosingScript } from "./generate-script";
 import { synthesizeSegmentToPCM } from "./tts";
@@ -89,7 +89,7 @@ export async function preGenerateBriefing(): Promise<{
   // 3. 뉴스 수집 + 시장 데이터 수집
   const [allNewsData, economicNews] = await Promise.all([
     fetchNewsForStocks(allStocks),
-    fetchEconomicNews(),
+    fetchEconomicNewsScheduled(),
   ]);
   console.log(`[pre-generate] News fetched: ${allNewsData.length} stocks, ${economicNews.length} economic articles`);
 
