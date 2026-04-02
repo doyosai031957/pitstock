@@ -187,18 +187,19 @@ export async function fetchNewsForStocks(stocks: string[]): Promise<StockNews[]>
 const ECONOMIC_KEYWORDS = [
   "뉴욕증시 | 나스닥 | S&P500 마감",
   "미국 빅테크 실적",
-  "코스피 | 코스닥 시황",
-  "외국인 | 기관 순매수",
+  "코스피 | 코스닥",
+  "외국인 | 기관",
   "연준 | FOMC | 파월 금리",
-  "한국은행 | 이창용 기준금리",
+  "한국은행",
   "미국 CPI | PCE | 인플레이션",
   "미국 고용 | 실업률 | 비농업",
   "한국 수출 | 무역수지",
-  "원달러 환율 | 강달러",
+  "환율 | 강달러",
   "미국 국채 | 10년물 금리",
   "국제유가 | WTI | 에너지",
   "금값 | 구리가격 | 원자재",
   "미중 갈등 | 지정학적 리스크",
+  "경제 | 오늘의 경제",
 ];
 
 export async function fetchEconomicNews(): Promise<NewsItem[]> {
@@ -278,16 +279,32 @@ export async function fetchEconomicNews(): Promise<NewsItem[]> {
     groupArticles.push(items);
   }
 
-  // 라운드 로빈: 각 키워드 그룹에서 골고루 뽑기
+  // 라운드 로빈: 각 키워드 그룹에서 골고루 뽑기 + 내용 유사도 필터
   const result: NewsItem[] = [];
+  const usedDescriptions: string[] = [];
+
+  function isSimilar(desc: string): boolean {
+    const words = desc.split(/\s+/).filter((w) => w.length >= 2);
+    for (const used of usedDescriptions) {
+      const usedWords = new Set(used.split(/\s+/).filter((w) => w.length >= 2));
+      const overlap = words.filter((w) => usedWords.has(w)).length;
+      if (words.length > 0 && overlap / words.length > 0.5) return true;
+    }
+    return false;
+  }
+
   let round = 0;
-  while (result.length < 15) {
+  while (result.length < 25) {
     let added = false;
     for (const group of groupArticles) {
       if (round < group.length) {
-        result.push(group[round]);
+        const candidate = group[round];
+        if (!isSimilar(candidate.description)) {
+          result.push(candidate);
+          usedDescriptions.push(candidate.description);
+          if (result.length >= 25) break;
+        }
         added = true;
-        if (result.length >= 15) break;
       }
     }
     if (!added) break;

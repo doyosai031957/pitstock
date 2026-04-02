@@ -145,18 +145,30 @@ const ECONOMY_SUMMARY_SYSTEM_PROMPT = `${BASE_RULES}
 
 [역할] 경제 브리핑 앵커. 주린이에게 오늘 시장을 5분 안에 이해시키는 것이 목표.
 
-[구성 순서] 1000~1300자. 모든 섹션 필수.
+[구성 순서] 1100~1500자. 모든 섹션 필수.
 1. "안녕하세요, {MM}월 {DD}일 피트스탁 경제 브리핑을 시작하겠습니다."
-2. 국내 증시: 코스피/코스닥 흐름 + 왜 올랐거나 빠졌는지 + 외국인/기관 수급
-3. 미국 증시: 나스닥/S&P500/다우 + 주요 이벤트
-4. 환율/금리: 원달러 환율 + 금리 동향
-5. 원자재: 유가, 금값 (뉴스 있을 때만)
-6. "본 브리핑은 투자 참고용이며, 투자 판단과 책임은 본인에게 있습니다. 오늘도 현명한 하루 되세요."
+2. 국내 증시 (200~250자): 코스피/코스닥 흐름 + 왜 올랐거나 빠졌는지 배경 설명 + 외국인/기관 수급 흐름과 그 의미
+3. 이슈 종목 (150~200자): 시장 데이터에서 등락률이 크거나 뉴스에서 이슈가 된 종목 1~2개를 골라 왜 움직였는지 설명. 종목명을 직접 언급해도 됨. 단, 매수/매도 추천은 절대 금지.
+4. 미국 증시 (200~250자): 나스닥/S&P500/다우 흐름 + 어떤 이벤트가 시장을 움직였는지 + 섹터별 차별화가 있었다면 언급
+5. 환율/금리 (150~200자): 원달러 환율 방향 + 왜 움직였는지 + 금리 동향과 채권 시장 이슈
+6. 원자재 (100~150자): 유가, 금값 등 뉴스가 있을 때만. 공급/수요 측면 배경 설명
+7. "본 브리핑은 투자 참고용이며, 투자 판단과 책임은 본인에게 있습니다. 오늘도 현명한 하루 되세요."
 
 [스타일]
-- 수치 나열 금지. 각 섹션마다 "왜" 움직였는지 원인을 설명하세요.
-- 이슈를 연결하세요: 미국 금리 기대 → 환율 → 외국인 수급 같은 흐름.
+- 수치 나열 금지. "코스피는 8.44퍼센트 올랐습니다. 나스닥은 3.8퍼센트 올랐습니다." 이런 식으로 숫자를 나열하지 마세요.
+- 각 섹션에서 수치는 최대 1~2개만. 나머지는 "큰 폭으로", "소폭" 같은 표현으로 대체.
+- "왜" 움직였는지 원인과 배경을 중심으로 설명하세요. 숫자가 아니라 이야기를 들려주세요.
+- 같은 원인(예: "종전 기대감")을 2번 이상 반복하지 마세요. 각 섹션마다 다른 각도로 설명하세요.
+- 이슈를 연결하세요: 종전 기대감 → 위험 자산 선호 → 외국인 수급 같은 흐름으로.
 - 뻔한 마무리 금지: "주시해야 합니다", "주목됩니다" 같은 문장 쓰지 마세요.
+- "긍정적", "부정적", "호재", "악재" 같은 감정 판단 표현 금지.
+- 이슈 종목 섹션 외에서는 개별 종목명보다 섹터 단위 표현을 우선하세요.
+
+[좋은 예] (약 1100자 — 스타일 참고용. 내용을 베끼지 말고 오늘 뉴스 데이터로 직접 작성하세요)
+"안녕하세요, 11월 15일 피트스탁 경제 브리핑을 시작하겠습니다. 어젯밤 연준이 기준금리를 동결했는데요, 시장은 이미 예상한 결과였지만 파월 의장의 발언이 분위기를 바꿔놓았습니다. 인플레이션이 예상보다 빠르게 잡히고 있다는 언급에 내년 초 금리 인하 기대가 한층 커진 건데요. 이 기대감이 국내 증시에도 영향을 줬습니다. 코스피는 2600선을 회복했는데요, 외국인이 3거래일 연속 순매수에 나선 게 핵심이었습니다. 달러 약세로 원화 표시 자산의 매력이 올라간 셈이죠. 기관은 반대로 차익 실현에 나섰고요, 코스닥은 바이오 섹터가 끌어올리며 소폭 상승했습니다. 미국 증시를 보면, 나스닥이 가장 많이 올랐는데요. 금리 인하 기대가 커지면서 성장주 밸류에이션 부담이 줄어든 영향입니다. 반도체 섹터가 특히 강했고요, 반면 금융주는 금리 하락 전망에 약세를 보였습니다. 에스앤피500은 올해 최고치를 경신했습니다. 환율은 달러 약세 흐름을 타고 원달러 환율이 15원 가까이 하락했는데요, 연준의 비둘기파적 시그널이 직접적인 원인이었습니다. 국채 시장에서도 금리가 전반적으로 내려갔고요, 10년물 금리가 4퍼센트 아래로 떨어진 건 두 달 만입니다. 원자재 쪽에서는 국제유가가 소폭 하락했는데요, 수요 둔화 우려와 미국 원유 재고 증가가 맞물린 결과입니다. 금값은 달러 약세에 힘입어 소폭 올랐습니다. 본 브리핑은 투자 참고용이며, 투자 판단과 책임은 본인에게 있습니다. 오늘도 현명한 하루 되세요."
+
+[나쁜 예]
+"코스피는 2634.70포인트로 1.8퍼센트 상승했습니다. 나스닥은 2.1퍼센트 올랐습니다. 다우존스는 1.2퍼센트, S&P500은 1.5퍼센트 상승했습니다. 환율은 15원 하락했습니다. 금리도 하락했습니다."
 
 [인스타 캡션] 별도 작성. 한 줄 요약 + 3~5개 bullet(이모지) + 해시태그 10~15개. 500~800자.
 
@@ -347,9 +359,44 @@ export async function generateEconomySummary(economicNews: NewsItem[], marketDat
   }
 
   const newsHeadlines = economicNews.map((a) => a.title);
-  return callLLM(ECONOMY_SUMMARY_SYSTEM_PROMPT, message, {
-    maxTokens: 4096,
-    scriptType: "economy",
-    newsHeadlines,
-  });
+  const client = getOpenAIClient();
+
+  const generate = async (extraUserMsg?: string) => {
+    const messages: { role: "system" | "user"; content: string }[] = [
+      { role: "system", content: ECONOMY_SUMMARY_SYSTEM_PROMPT },
+      { role: "user", content: extraUserMsg ? `${message}\n\n${extraUserMsg}` : message },
+    ];
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 4096,
+      temperature: 0.3,
+      messages,
+    });
+    const text = response.choices[0]?.message?.content;
+    if (!text) throw new Error("No text response from OpenAI API");
+    return parseScriptResult(text);
+  };
+
+  let result = await generate();
+
+  // 최대 3회 리트라이 (이전 스크립트를 보여주며 보강 요청)
+  for (let retry = 0; retry < 3; retry++) {
+    const ruleErrors = validateScriptRules(result.script, "economy");
+    const errors = ruleErrors.filter((r) => r.severity === "error");
+    if (errors.length === 0) break;
+
+    console.log(`[validate] economy Layer A errors → retry ${retry + 1}/3`);
+    console.log(formatValidationLog(errors));
+    const errorFeedback = `[검증 실패 — 아래 문제를 수정하여 다시 작성하세요]\n${errors.map((e) => `- ${e.message}`).join("\n")}\n\n[이전 스크립트 (${result.script.length}자)]\n${result.script}\n\n위 스크립트를 기반으로 부족한 부분을 보강하여 1000자 이상으로 다시 작성하세요.`;
+    result = await generate(errorFeedback);
+  }
+
+  // 최종 검증 (Layer A + B, 시장 데이터 포함)
+  const allResults = await validateScript(result.script, "economy", newsHeadlines, marketDataText);
+  if (allResults.length > 0) {
+    console.log(formatValidationLog(allResults));
+  }
+  result.validation = allResults;
+
+  return result;
 }
